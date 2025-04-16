@@ -20,12 +20,12 @@ jobs:
           NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set PACKAGE_VERSION to Env
         run: echo "PACKAGE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-      - run: dotnet build
+      - run: dotnet build src/WorkflowCore/WorkflowCore.csproj
       - name: Create the package
-        run: dotnet pack --configuration Release /p:Version=${PACKAGE_VERSION}
-      - name: Find and publish packages
+        run: dotnet pack src/WorkflowCore/WorkflowCore.csproj --configuration Release /p:Version=${PACKAGE_VERSION}
+      - name: Publish package
         run: |
-          find . -name "*.nupkg" -type f | while read package; do
+          find src/WorkflowCore/bin/Release -name "TigerConnect.WorkflowCore.*.nupkg" -type f | while read package; do
             echo "Publishing $package"
             dotnet nuget push "$package"
           done
