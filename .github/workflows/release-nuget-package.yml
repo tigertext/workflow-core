@@ -1,0 +1,27 @@
+name: release-nuget-package
+
+on:
+  push:
+    tags:
+      - "[0-999]+.[0-999]+.[0-999]"
+      - "[0-999]+.[0-999]+.[0-999]+-*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Update NuGet package
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6'
+          source-url: https://nuget.pkg.github.com/tigertext/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set PACKAGE_VERSION to Env
+        run: echo "PACKAGE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+      - run: dotnet build
+      - name: Create the package
+        run: dotnet pack --configuration Release /p:Version=${PACKAGE_VERSION}
+      - name: Publish the package to GPR
+        run: dotnet nuget push ./bin/Release/*.nupkg
