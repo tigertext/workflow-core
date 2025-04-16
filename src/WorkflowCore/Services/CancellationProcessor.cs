@@ -3,6 +3,7 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 using WorkflowCore.Interface;
 using WorkflowCore.Models;
+using WorkflowCore.Primitives;
 
 namespace WorkflowCore.Services
 {
@@ -11,12 +12,18 @@ namespace WorkflowCore.Services
         protected readonly ILogger _logger;
         private readonly IExecutionResultProcessor _executionResultProcessor;
         private readonly IDateTimeProvider _dateTimeProvider;
+        private readonly IPersistenceProvider _persistenceProvider;
 
-        public CancellationProcessor(IExecutionResultProcessor executionResultProcessor, ILoggerFactory logFactory, IDateTimeProvider dateTimeProvider)
+        public CancellationProcessor(
+            IExecutionResultProcessor executionResultProcessor, 
+            ILoggerFactory logFactory, 
+            IDateTimeProvider dateTimeProvider,
+            IPersistenceProvider persistenceProvider)
         {
             _executionResultProcessor = executionResultProcessor;
             _logger = logFactory.CreateLogger<CancellationProcessor>();
             _dateTimeProvider = dateTimeProvider;
+            _persistenceProvider = persistenceProvider;
         }
 
         public void ProcessCancellations(WorkflowInstance workflow, WorkflowDefinition workflowDef, WorkflowExecutorResult executionResult)
@@ -36,6 +43,18 @@ namespace WorkflowCore.Services
                 if (cancel)
                 {
                     var toCancel = workflow.ExecutionPointers.Where(x => x.StepId == step.Id && x.Status != PointerStatus.Complete && x.Status != PointerStatus.Cancelled).ToList();
+
+                    // Clean up ScheduledCommands for the workflow once, before processing cancellations
+                    if (_persistenceProvider.SupportsScheduledCommands && toCancel.Any())
+                    {
+                        _persistenceProvider.ProcessCommands(DateTimeOffset.MaxValue, async (cmd) => {
+                            if (cmd.CommandName == ScheduledCommand.ProcessWorkflow && cmd.Data == workflow.Id)
+                            {
+                                // Command will be automatically removed after processing
+                                return;
+                            }
+                        }).Wait();
+                    }
 
                     foreach (var ptr in toCancel)
                     {
