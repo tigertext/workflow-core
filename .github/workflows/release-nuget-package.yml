@@ -23,5 +23,9 @@ jobs:
       - run: dotnet build
       - name: Create the package
         run: dotnet pack --configuration Release /p:Version=${PACKAGE_VERSION}
-      - name: Publish the package to GPR
-        run: dotnet nuget push ./bin/Release/*.nupkg
+      - name: Find and publish packages
+        run: |
+          find . -name "*.nupkg" -type f | while read package; do
+            echo "Publishing $package"
+            dotnet nuget push "$package"
+          done
