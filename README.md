@@ -140,6 +140,7 @@ There are several persistence providers available as separate Nuget packages.
 * [Sqlite](src/providers/WorkflowCore.Persistence.Sqlite)
 * [MySQL](src/providers/WorkflowCore.Persistence.MySQL)
 * [Redis](src/providers/WorkflowCore.Providers.Redis)
+* [Oracle](src/providers/WorkflowCore.Persistence.Oracle)
 
 ## Search
 
@@ -149,6 +150,7 @@ These are also available as separate Nuget packages.
 
 ## Extensions
 
+* [Azure AI Foundry](src/extensions/WorkflowCore.AI.AzureFoundry)
 * [User (human) workflows](src/extensions/WorkflowCore.Users)
 
 
@@ -184,11 +186,11 @@ These are also available as separate Nuget packages.
 
 * [Deferred execution & re-entrant steps](src/samples/WorkflowCore.Sample05)
 
+* [Human(User) Workflow](src/samples/WorkflowCore.Sample08)
+
 * [Looping](src/samples/WorkflowCore.Sample02)
 
 * [Exposing a REST API](src/samples/WebApiSample)
-
-* [Human(User) Workflow](src/samples/WorkflowCore.Sample08)
 
 * [Testing](src/samples/WorkflowCore.TestSample01)
 
