@@ -1,4 +1,4 @@
-﻿using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
 using Microsoft.Extensions.Logging;
@@ -67,7 +67,15 @@ namespace WorkflowCore.Providers.AWS.Services
 
                 if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
                 {
-                    _localLocks.Add(Id);
+                    _mutex.WaitOne();
+                    try
+                    {
+                        _localLocks.Add(Id);
+                    }
+                    finally
+                    {
+                        _mutex.Set();
+                    }
                     return true;
                 }
             }
@@ -147,6 +155,9 @@ namespace WorkflowCore.Providers.AWS.Services
                         {
                             foreach (var item in _localLocks.ToArray())
                             {
+                                if (string.IsNullOrEmpty(item))
+                                    continue;
+
                                 var req = new PutItemRequest
                                 {
                                     TableName = _tableName,
