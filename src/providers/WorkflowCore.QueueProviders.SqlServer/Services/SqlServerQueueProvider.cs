@@ -1,12 +1,12 @@
 ﻿#region using
 
 using System;
-using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 
 using WorkflowCore.Interface;
 using WorkflowCore.QueueProviders.SqlServer.Interfaces;
@@ -123,11 +123,11 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             {
                 await cn.OpenAsync(cancellationToken);
 
-                var par = _config.GetByQueue(queue);                
+                var par = _config.GetByQueue(queue);
                 var sql = _dequeueWorkCommand.Replace("{queueName}", par.QueueName);
                 var msg = await _sqlCommandExecutor.ExecuteScalarAsync<object>(cn, null, sql);
                 return msg is DBNull ? null : (string)msg;
-                
+
             }
             finally
             {
