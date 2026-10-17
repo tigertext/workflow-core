@@ -49,7 +49,7 @@ namespace WorkflowCore.Services
             _activityController = activityController;
             _lifeCycleEventHub = lifeCycleEventHub;
         }
-        
+
         public Task<string> StartWorkflow(string workflowId, object data = null, string reference=null)
         {
             return _workflowController.StartWorkflow(workflowId, data, reference);
@@ -65,7 +65,7 @@ namespace WorkflowCore.Services
         {
             return _workflowController.StartWorkflow<TData>(workflowId, null, data, reference);
         }
-        
+
         public Task<string> StartWorkflow<TData>(string workflowId, int? version, TData data = null, string reference=null)
             where TData : class, new()
         {
@@ -79,9 +79,9 @@ namespace WorkflowCore.Services
 
         public void Start()
         {
-            StartAsync(CancellationToken.None).Wait();
+            StartAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
-        
+
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             var activity = WorkflowActivity.StartHost();
@@ -101,11 +101,14 @@ namespace WorkflowCore.Services
                 Logger.LogInformation("Starting background tasks");
 
                 foreach (var task in _backgroundTasks)
-                    task.Start();
+                {
+                    if (task != null)
+                        task.Start();
+                }
             }
             catch (Exception ex)
             {
-                activity.AddException(ex);
+                activity?.AddException(ex);
                 throw;
             }
             finally
@@ -116,16 +119,19 @@ namespace WorkflowCore.Services
 
         public void Stop()
         {
-            StopAsync(CancellationToken.None).Wait();
+            StopAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
-        
+
         public async Task StopAsync(CancellationToken cancellationToken)
         {
             _shutdown = true;
 
             Logger.LogInformation("Stopping background tasks");
             foreach (var th in _backgroundTasks)
-                th.Stop();
+            {
+                if (th != null)
+                    th.Stop();
+            }
 
             Logger.LogInformation("Worker tasks stopped");
 

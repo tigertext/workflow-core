@@ -17,7 +17,7 @@ namespace WorkflowCore.Services
     /// <summary>
     /// In-memory implementation of IPersistenceProvider for demo and testing purposes
     /// </summary>
-    public class MemoryPersistenceProvider : ISingletonMemoryProvider
+    public class MemoryPersistenceProvider : ISingletonMemoryProvider, IWorkflowPurger
     {
         private readonly List<WorkflowInstance> _instances = new List<WorkflowInstance>();
         private readonly List<EventSubscription> _subscriptions = new List<EventSubscription>();
@@ -78,7 +78,7 @@ namespace WorkflowCore.Services
         {
             lock (_instances)
             {
-                return _instances.First(x => x.Id == Id);
+                return _instances.FirstOrDefault(x => x.Id == Id);
             }
         }
 
@@ -149,8 +149,9 @@ namespace WorkflowCore.Services
         {
             lock (_subscriptions)
             {
-                var sub = _subscriptions.Single(x => x.Id == eventSubscriptionId);
-                _subscriptions.Remove(sub);
+                var sub = _subscriptions.SingleOrDefault(x => x.Id == eventSubscriptionId);
+                if (sub != null)
+                    _subscriptions.Remove(sub);
             }
         }
 
@@ -158,7 +159,7 @@ namespace WorkflowCore.Services
         {
             lock (_subscriptions)
             {
-                var sub = _subscriptions.Single(x => x.Id == eventSubscriptionId);
+                var sub = _subscriptions.SingleOrDefault(x => x.Id == eventSubscriptionId);
                 return Task.FromResult(sub);
             }
         }
@@ -177,7 +178,9 @@ namespace WorkflowCore.Services
         {
             lock (_subscriptions)
             {
-                var sub = _subscriptions.Single(x => x.Id == eventSubscriptionId);
+                var sub = _subscriptions.SingleOrDefault(x => x.Id == eventSubscriptionId);
+                if (sub == null)
+                    return Task.FromResult(false);
                 sub.ExternalToken = token;
                 sub.ExternalWorkerId = workerId;
                 sub.ExternalTokenExpiry = expiry;
@@ -190,7 +193,9 @@ namespace WorkflowCore.Services
         {
             lock (_subscriptions)
             {
-                var sub = _subscriptions.Single(x => x.Id == eventSubscriptionId);
+                var sub = _subscriptions.SingleOrDefault(x => x.Id == eventSubscriptionId);
+                if (sub == null)
+                    throw new InvalidOperationException($"Subscription {eventSubscriptionId} not found.");
                 if (sub.ExternalToken != token)
                     throw new InvalidOperationException();
                 sub.ExternalToken = null;
@@ -271,7 +276,7 @@ namespace WorkflowCore.Services
 
         public async Task PersistErrors(IEnumerable<ExecutionError> errors, CancellationToken _ = default)
         {
-            lock (errors)
+            lock (_errors)
             {
                 _errors.AddRange(errors);
             }
@@ -285,6 +290,30 @@ namespace WorkflowCore.Services
         public Task ProcessCommands(DateTimeOffset asOf, Func<ScheduledCommand, Task> action, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Purges only completed or terminated workflows; other status values are rejected.
+        /// </summary>
+        /// <remarks>
+        /// Workflows without a <see cref="WorkflowInstance.CompleteTime"/> value are not eligible for purge.
+        /// </remarks>
+        public Task PurgeWorkflows(WorkflowStatus status, DateTime olderThan, CancellationToken cancellationToken = default)
+        {
+            var olderThanUtc = olderThan.ToUniversalTime();
+            if (status != WorkflowStatus.Complete && status != WorkflowStatus.Terminated)
+            {
+                throw new ArgumentOutOfRangeException(nameof(status), status, "Only complete or terminated workflows can be purged.");
+            }
+
+            lock (_instances)
+            {
+                _instances.RemoveAll(x => x.Status == status
+                    && x.CompleteTime.HasValue
+                    && x.CompleteTime.Value < olderThanUtc);
+            }
+
+            return Task.CompletedTask;
         }
     }
 

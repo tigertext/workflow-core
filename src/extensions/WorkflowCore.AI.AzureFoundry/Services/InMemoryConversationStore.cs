@@ -26,25 +26,34 @@ namespace WorkflowCore.AI.AzureFoundry.Services
         public Task<ConversationThread> GetOrCreateThreadAsync(string workflowInstanceId, string executionPointerId)
         {
             var key = $"{workflowInstanceId}:{executionPointerId}";
-            
-            if (_workflowThreadMap.TryGetValue(key, out var threadId))
+
+            var threadId = _workflowThreadMap.GetOrAdd(key, k =>
             {
-                if (_threads.TryGetValue(threadId, out var existingThread))
+                var thread = new ConversationThread
                 {
-                    return Task.FromResult(existingThread);
-                }
+                    WorkflowInstanceId = workflowInstanceId,
+                    ExecutionPointerId = executionPointerId
+                };
+                _threads[thread.Id] = thread;
+                return thread.Id;
+            });
+
+            if (_threads.TryGetValue(threadId, out var existingThread))
+            {
+                return Task.FromResult(existingThread);
             }
 
-            var thread = new ConversationThread
+            // The thread was removed or the mapping is stale; recreate and update the mapping.
+            var newThread = new ConversationThread
             {
                 WorkflowInstanceId = workflowInstanceId,
                 ExecutionPointerId = executionPointerId
             };
 
-            _threads[thread.Id] = thread;
-            _workflowThreadMap[key] = thread.Id;
+            _threads[newThread.Id] = newThread;
+            _workflowThreadMap[key] = newThread.Id;
 
-            return Task.FromResult(thread);
+            return Task.FromResult(newThread);
         }
 
         public Task SaveThreadAsync(ConversationThread thread)
