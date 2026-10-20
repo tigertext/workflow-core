@@ -210,12 +210,7 @@ namespace WorkflowCore.Services
             foreach (var pointer in pointers)
             {
                 var step = workflowDef.Steps.FindById(pointer.StepId);
-                if (step == null)
-                {
-                    _logger.LogWarning("Step {StepId} not found in workflow definition {WorkflowId}", pointer.StepId, workflowDef.Id);
-                    continue;
-                }
-                step.AfterWorkflowIteration(workflowResult, workflowDef, workflow, pointer);
+                step?.AfterWorkflowIteration(workflowResult, workflowDef, workflow, pointer);
             }
         }
 

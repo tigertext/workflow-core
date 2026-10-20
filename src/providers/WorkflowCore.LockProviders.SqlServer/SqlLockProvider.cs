@@ -77,10 +77,10 @@ namespace WorkflowCore.LockProviders.SqlServer
                             return false;
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
                         connection.Close();
-                        throw;
+                        throw ex;
                     }
                 }
                 finally
@@ -97,8 +97,8 @@ namespace WorkflowCore.LockProviders.SqlServer
             {
                 try
                 {
-                    if (!_locks.TryGetValue(Id, out var connection))
-                        return;
+                    SqlConnection connection = null;
+                    connection = _locks[Id];
 
                     if (connection == null)
                         return;

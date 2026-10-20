@@ -406,7 +406,7 @@ namespace WorkflowCore.Providers.AWS.Services
 
         public void EnsureStoreExists()
         {
-            _provisioner.ProvisionTables().GetAwaiter().GetResult();
+            _provisioner.ProvisionTables().Wait();
         }
 
         public async Task<EventSubscription> GetSubscription(string eventSubscriptionId, CancellationToken cancellationToken = default)

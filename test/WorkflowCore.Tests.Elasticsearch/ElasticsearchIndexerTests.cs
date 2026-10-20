@@ -11,28 +11,17 @@ namespace WorkflowCore.Tests.Elasticsearch
     [Collection("Elasticsearch collection")]
     public class ElasticsearchIndexerTests : SearchIndexTests
     {
-        private readonly string _indexName = $"workflowcore-tests-{Guid.NewGuid():N}";
+        ElasticsearchDockerSetup _dockerSetup;
 
         public ElasticsearchIndexerTests(ElasticsearchDockerSetup dockerSetup)
         {
-            _ = dockerSetup;
+            _dockerSetup = dockerSetup;
         }
 
         protected override ISearchIndex CreateService()
         {
             var settings = new ConnectionSettings(new Uri(ElasticsearchDockerSetup.ConnectionString));
-            return new ElasticsearchIndexer(settings, _indexName, new LoggerFactory());
-        }
-
-        protected override void WaitUntilSearchable()
-        {
-            var client = new ElasticClient(new ConnectionSettings(new Uri(ElasticsearchDockerSetup.ConnectionString)));
-            var refresh = client.Indices.Refresh(_indexName);
-            if (!refresh.IsValid)
-            {
-                throw new InvalidOperationException(
-                    $"Elasticsearch refresh failed for '{_indexName}': {refresh.DebugInformation}");
-            }
+            return new ElasticsearchIndexer(settings, "workflowcore.tests", new LoggerFactory());
         }
     }
 }
