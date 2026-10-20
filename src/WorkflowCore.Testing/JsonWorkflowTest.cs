@@ -17,7 +17,6 @@ namespace WorkflowCore.Testing
         protected IDefinitionLoader DefinitionLoader;
         protected IWorkflowRegistry Registry;
         protected List<StepError> UnhandledStepErrors = new List<StepError>();
-        private ServiceProvider _serviceProvider;
 
         protected virtual void Setup()
         {
@@ -26,16 +25,16 @@ namespace WorkflowCore.Testing
             services.AddLogging();
             ConfigureServices(services);
 
-            _serviceProvider = services.BuildServiceProvider();
+            var serviceProvider = services.BuildServiceProvider();
 
             //config logging
-            var loggerFactory = _serviceProvider.GetService<ILoggerFactory>();
+            var loggerFactory = serviceProvider.GetService<ILoggerFactory>();
             //loggerFactory.AddConsole(LogLevel.Debug);
 
-            PersistenceProvider = _serviceProvider.GetService<IPersistenceProvider>();
-            DefinitionLoader = _serviceProvider.GetService<IDefinitionLoader>();
-            Registry = _serviceProvider.GetService<IWorkflowRegistry>();
-            Host = _serviceProvider.GetService<IWorkflowHost>();
+            PersistenceProvider = serviceProvider.GetService<IPersistenceProvider>();
+            DefinitionLoader = serviceProvider.GetService<IDefinitionLoader>();
+            Registry = serviceProvider.GetService<IWorkflowRegistry>();
+            Host = serviceProvider.GetService<IWorkflowHost>();
             Host.OnStepError += Host_OnStepError;
             Host.Start();
         }
@@ -105,7 +104,6 @@ namespace WorkflowCore.Testing
         public void Dispose()
         {
             Host.Stop();
-            _serviceProvider?.Dispose();
         }
     }
 

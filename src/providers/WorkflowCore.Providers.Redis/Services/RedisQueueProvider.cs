@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using WorkflowCore.Interface;
-using WorkflowCore.Models;
 
 namespace WorkflowCore.Providers.Redis.Services
 {
@@ -25,27 +24,15 @@ namespace WorkflowCore.Providers.Redis.Services
             [QueueType.Index] = "index"
         };
 
-        private readonly Dictionary<QueueType, bool> _enabledQueues = new Dictionary<QueueType, bool>
-        {
-        };
-
-        public RedisQueueProvider(string connectionString, string prefix, WorkflowOptions options, ILoggerFactory logFactory)
+        public RedisQueueProvider(string connectionString, string prefix, ILoggerFactory logFactory)
         {
             _connectionString = connectionString;
             _prefix = prefix;
-            _enabledQueues[QueueType.Index] = options.EnableIndexes;
-            _enabledQueues[QueueType.Event] = options.EnableEvents;
-            _enabledQueues[QueueType.Workflow] = options.EnableWorkflows;
             _logger = logFactory.CreateLogger(GetType());
         }
-
+        
         public async Task QueueWork(string id, QueueType queue)
         {
-            if (!_enabledQueues[queue])
-            {
-                return;
-            }
-
             if (_redis == null)
                 throw new InvalidOperationException();
 
@@ -60,11 +47,6 @@ namespace WorkflowCore.Providers.Redis.Services
 
         public async Task<string> DequeueWork(QueueType queue, CancellationToken cancellationToken)
         {
-            if (!_enabledQueues[queue])
-            {
-                return null;
-            }
-
             if (_redis == null)
                 throw new InvalidOperationException();
 

@@ -31,7 +31,8 @@ namespace WorkflowCore.Providers.AWS.Services
             _tracker = tracker;
             _lockManager = lockManager;
             _client = kinesisClient;
-            _processTask = Task.Run(() => Process());
+            _processTask = new Task(Process);
+            _processTask.Start();
             _dateTimeProvider = dateTimeProvider;
         }
 
@@ -54,7 +55,7 @@ namespace WorkflowCore.Providers.AWS.Services
             }
         }
 
-        private async Task Process()
+        private async void Process()
         {
             while (!_cancelToken.IsCancellationRequested)
             {

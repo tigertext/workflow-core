@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 using WorkflowCore.Interface;
 using WorkflowCore.Persistence.MongoDB.Services;
 using WorkflowCore.UnitTests;
@@ -23,7 +22,7 @@ namespace WorkflowCore.Tests.MongoDB
             {
                 var client = new MongoClient(MongoDockerSetup.ConnectionString);
                 var db = client.GetDatabase(nameof(MongoPersistenceProviderFixture));
-                var provider = new MongoPersistenceProvider(db, new LoggerFactory());
+                var provider = new MongoPersistenceProvider(db);
                 provider.EnsureStoreExists();
                 return provider;
             }

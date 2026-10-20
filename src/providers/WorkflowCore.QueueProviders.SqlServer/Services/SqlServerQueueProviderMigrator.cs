@@ -31,38 +31,40 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
 
         public async Task MigrateDbAsync()
         {
-            using (var cn = new SqlConnection(_connectionString))
+            var cn = new SqlConnection(_connectionString);
+            await cn.OpenAsync();
+            var tx = cn.BeginTransaction();
+            try
             {
-                await cn.OpenAsync();
-                var tx = cn.BeginTransaction();
-                try
+                var queueConfigurations = new[]
                 {
-                    var queueConfigurations = new[]
-                    {
-                        _configProvider.GetByQueue(QueueType.Workflow),
-                        _configProvider.GetByQueue(QueueType.Event),
-                        _configProvider.GetByQueue(QueueType.Index)
-                    };
+                    _configProvider.GetByQueue(QueueType.Workflow),
+                    _configProvider.GetByQueue(QueueType.Event),
+                    _configProvider.GetByQueue(QueueType.Index)
+                };
 
-                    foreach (var item in queueConfigurations)
-                    {
-                        await CreateMessageType(cn, tx, item.MsgType);
-
-                        await CreateContract(cn, tx, item.ContractName, item.MsgType);
-
-                        await CreateQueue(cn, tx, item.QueueName);
-
-                        await CreateService(cn, tx, item.InitiatorService, item.QueueName, item.ContractName);
-                        await CreateService(cn, tx, item.TargetService, item.QueueName, item.ContractName);
-                    }
-
-                    tx.Commit();
-                }
-                catch
+                foreach (var item in queueConfigurations)
                 {
-                    tx.Rollback();
-                    throw;
+                    await CreateMessageType(cn, tx, item.MsgType);
+
+                    await CreateContract(cn, tx, item.ContractName, item.MsgType);
+
+                    await CreateQueue(cn, tx, item.QueueName);
+
+                    await CreateService(cn, tx, item.InitiatorService, item.QueueName, item.ContractName);
+                    await CreateService(cn, tx, item.TargetService, item.QueueName, item.ContractName);
                 }
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+            finally
+            {
+                cn.Close();
             }
         }
 
@@ -74,7 +76,7 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             if (!string.IsNullOrEmpty(existing))
                 return;
 
-            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE SERVICE [{SanitizeIdentifier(name)}] ON QUEUE [{SanitizeIdentifier(queueName)}]([{SanitizeIdentifier(contractName)}]);");
+            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE SERVICE [{name}] ON QUEUE [{queueName}]([{contractName}]);");
         }
 
         private async Task CreateQueue(SqlConnection cn, SqlTransaction tx, string queueName)
@@ -85,7 +87,7 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             if (!string.IsNullOrEmpty(existing))
                 return;
 
-            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE QUEUE [{SanitizeIdentifier(queueName)}];");
+            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE QUEUE [{queueName}];");
         }
 
         private async Task CreateContract(SqlConnection cn, SqlTransaction tx, string contractName, string messageName)
@@ -96,7 +98,7 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             if (!string.IsNullOrEmpty(existing))
                 return;
 
-            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE CONTRACT [{SanitizeIdentifier(contractName)}] ( [{SanitizeIdentifier(messageName)}] SENT BY INITIATOR);");
+            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE CONTRACT [{contractName}] ( [{messageName}] SENT BY INITIATOR);");
         }
 
         private async Task CreateMessageType(SqlConnection cn, SqlTransaction tx, string message)
@@ -107,17 +109,10 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             if (!string.IsNullOrEmpty(existing))
                 return;
 
-            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE MESSAGE TYPE [{SanitizeIdentifier(message)}] VALIDATION = NONE;");
+            await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"CREATE MESSAGE TYPE [{message}] VALIDATION = NONE;");
         }
 
         #endregion
-
-        private static string SanitizeIdentifier(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Identifier cannot be null or empty.", nameof(name));
-            return name.Replace("]", "]]");
-        }
 
         public async Task CreateDbAsync()
         {
@@ -128,9 +123,10 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
             var masterCnStr = masterBuilder.ToString();
 
             bool dbPresente;
-            using (var cn = new SqlConnection(masterCnStr))
+            var cn = new SqlConnection(masterCnStr);
+            await cn.OpenAsync();
+            try
             {
-                await cn.OpenAsync();
                 var cmd = cn.CreateCommand();
                 cmd.CommandText = "select name from sys.databases where name = @dbname";
                 cmd.Parameters.AddWithValue("@dbname", builder.InitialCatalog);
@@ -144,32 +140,38 @@ namespace WorkflowCore.QueueProviders.SqlServer.Services
                     await createCmd.ExecuteNonQueryAsync();
                 }
             }
+            finally
+            {
+                cn.Close();
+            }
 
             await EnableBroker(masterCnStr, builder.InitialCatalog);
         }
 
         private async Task EnableBroker(string masterCn, string db)
         {
-            using (var cn = new SqlConnection(masterCn))
+            var cn = new SqlConnection(masterCn);
+            await cn.OpenAsync();
+
+            var isBrokerEnabled = await _sqlCommandExecutor.ExecuteScalarAsync<bool>(cn, null, @"select is_broker_enabled from sys.databases where name = @name", new SqlParameter("@name", db));
+
+            if (isBrokerEnabled)
+                return;
+
+            var tx = cn.BeginTransaction();
+            try
             {
-                await cn.OpenAsync();
-
-                var isBrokerEnabled = await _sqlCommandExecutor.ExecuteScalarAsync<bool>(cn, null, @"select is_broker_enabled from sys.databases where name = @name", new SqlParameter("@name", db));
-
-                if (isBrokerEnabled)
-                    return;
-
-                var tx = cn.BeginTransaction();
-                try
-                {
-                    await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"ALTER DATABASE [{SanitizeIdentifier(db)}] SET ENABLE_BROKER;");
-                    tx.Commit();
-                }
-                catch
-                {
-                    tx.Rollback();
-                    throw;
-                }
+                await _sqlCommandExecutor.ExecuteCommandAsync(cn, tx, $"ALTER DATABASE [{db}] SET ENABLE_BROKER;");
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+            finally
+            {
+                cn.Close();
             }
         }
     }

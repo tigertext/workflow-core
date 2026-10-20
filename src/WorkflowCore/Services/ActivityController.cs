@@ -30,18 +30,14 @@ namespace WorkflowCore.Services
             var endTime = _dateTimeProvider.UtcNow.Add(timeout ?? TimeSpan.Zero);
             var firstPass = true;
             EventSubscription subscription = null;
-            bool lockAcquired = false;
             while ((subscription == null && _dateTimeProvider.UtcNow < endTime) || firstPass)
             {
                 if (!firstPass)
                     await Task.Delay(100);
                 subscription = await _subscriptionRepository.GetFirstOpenSubscription(Event.EventTypeActivity, activityName, _dateTimeProvider.UtcNow);
                 if (subscription != null)
-                {
-                    lockAcquired = await _lockProvider.AcquireLock($"sub:{subscription.Id}", CancellationToken.None);
-                    if (!lockAcquired)
+                    if (!await _lockProvider.AcquireLock($"sub:{subscription.Id}", CancellationToken.None))
                         subscription = null;
-                }
                 firstPass = false;
             }
             if (subscription == null)
@@ -55,7 +51,7 @@ namespace WorkflowCore.Services
                     Token = token.Encode(),
                     ActivityName = subscription.EventKey,
                     Parameters = subscription.SubscriptionData,
-                    TokenExpiry = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc)
+                    TokenExpiry = new DateTime(DateTime.MaxValue.Ticks, DateTimeKind.Utc)
                 };
 
                 if (!await _subscriptionRepository.SetSubscriptionToken(subscription.Id, result.Token, workerId, result.TokenExpiry))
@@ -65,8 +61,7 @@ namespace WorkflowCore.Services
             }
             finally
             {
-                if (lockAcquired)
-                    await _lockProvider.ReleaseLock($"sub:{subscription.Id}");
+                await _lockProvider.ReleaseLock($"sub:{subscription.Id}");
             }
 
         }

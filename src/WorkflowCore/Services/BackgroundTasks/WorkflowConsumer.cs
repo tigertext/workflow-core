@@ -96,7 +96,7 @@ namespace WorkflowCore.Services.BackgroundTasks
                         var readAheadTicks = _datetimeProvider.UtcNow.Add(Options.PollInterval).Ticks;
                         if (workflow.NextExecution.Value < readAheadTicks)
                         {
-                            _ = FutureQueue(workflow, cancellationToken);
+                            new Task(() => FutureQueue(workflow, cancellationToken)).Start();
                         }
                         else
                         {
@@ -160,7 +160,7 @@ namespace WorkflowCore.Services.BackgroundTasks
             }
         }
 
-        private async Task FutureQueue(WorkflowInstance workflow, CancellationToken cancellationToken)
+        private async void FutureQueue(WorkflowInstance workflow, CancellationToken cancellationToken)
         {
             try
             {

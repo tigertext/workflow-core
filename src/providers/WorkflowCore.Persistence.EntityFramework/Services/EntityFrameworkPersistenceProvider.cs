@@ -105,7 +105,7 @@ namespace WorkflowCore.Persistence.EntityFramework.Services
                     .Include(wf => wf.ExecutionPointers)
                     .ThenInclude(ep => ep.ExtensionAttributes)
                     .Include(wf => wf.ExecutionPointers)
-                    .FirstOrDefaultAsync(x => x.InstanceId == uid, cancellationToken);
+                    .FirstAsync(x => x.InstanceId == uid, cancellationToken);
 
                 if (raw == null)
                     return null;
@@ -238,7 +238,7 @@ namespace WorkflowCore.Persistence.EntityFramework.Services
             {
                 Guid uid = new Guid(id);
                 var raw = await db.Set<PersistedEvent>()
-                    .FirstOrDefaultAsync(x => x.EventId == uid, cancellationToken);
+                    .FirstAsync(x => x.EventId == uid, cancellationToken);
 
                 if (raw == null)
                     return null;
@@ -271,10 +271,7 @@ namespace WorkflowCore.Persistence.EntityFramework.Services
                 var existingEntity = await db.Set<PersistedEvent>()
                     .Where(x => x.EventId == uid)
                     .AsTracking()
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (existingEntity == null)
-                    return;
+                    .FirstAsync(cancellationToken);
 
                 existingEntity.IsProcessed = true;
                 await db.SaveChangesAsync(cancellationToken);
@@ -308,10 +305,7 @@ namespace WorkflowCore.Persistence.EntityFramework.Services
                 var existingEntity = await db.Set<PersistedEvent>()
                     .Where(x => x.EventId == uid)
                     .AsTracking()
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (existingEntity == null)
-                    return;
+                    .FirstAsync(cancellationToken);
 
                 existingEntity.IsProcessed = false;
                 await db.SaveChangesAsync(cancellationToken);

@@ -48,12 +48,7 @@ namespace WorkflowCore.Services
         }
 
         public void Dispose()
-        {
-            foreach (var queue in _queues.Values)
-            {
-                queue.CompleteAdding();
-                queue.Dispose();
-            }
+        {            
         }
         
     }
