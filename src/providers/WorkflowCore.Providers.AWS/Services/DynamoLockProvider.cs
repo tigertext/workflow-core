@@ -37,6 +37,12 @@ namespace WorkflowCore.Providers.AWS.Services
 
         public async Task<bool> AcquireLock(string Id, CancellationToken cancellationToken)
         {
+            if (string.IsNullOrEmpty(Id))
+            {
+                _logger.LogWarning("Refusing to acquire a lock with an empty id");
+                return false;
+            }
+
             try
             {
                 var req = new PutItemRequest
@@ -150,50 +156,70 @@ namespace WorkflowCore.Providers.AWS.Services
                 try
                 {
                     await Task.Delay(_heartbeat, _cancellationTokenSource.Token);
-                    if (_mutex.WaitOne())
+
+                    // Snapshot under the mutex, then do the network I/O outside of it so
+                    // AcquireLock/ReleaseLock are not blocked while DynamoDB is being called.
+                    string[] items;
+                    _mutex.WaitOne();
+                    try
                     {
+                        items = _localLocks.ToArray();
+                    }
+                    finally
+                    {
+                        _mutex.Set();
+                    }
+
+                    foreach (var item in items)
+                    {
+                        if (string.IsNullOrEmpty(item))
+                        {
+                            _logger.LogWarning("Skipping heartbeat for an empty lock id");
+                            continue;
+                        }
+
+                        var req = new PutItemRequest
+                        {
+                            TableName = _tableName,
+                            Item = new Dictionary<string, AttributeValue>
+                            {
+                                { "id", new AttributeValue(item) },
+                                { "lock_owner", new AttributeValue(_nodeId) },
+                                { "expires", new AttributeValue
+                                    {
+                                        N = Convert.ToString(new DateTimeOffset(_dateTimeProvider.UtcNow).ToUnixTimeMilliseconds() + _ttl)
+                                    }
+                                }
+                            },
+                            ConditionExpression = "lock_owner = :nodeId",
+                            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                            {
+                                { ":nodeId", new AttributeValue(_nodeId) }
+                            }
+                        };
+
+                        // A failure on one lock must not stop the remaining locks from being renewed.
                         try
                         {
-                            foreach (var item in _localLocks.ToArray())
-                            {
-                                if (string.IsNullOrEmpty(item))
-                                    continue;
-
-                                var req = new PutItemRequest
-                                {
-                                    TableName = _tableName,
-                                    Item = new Dictionary<string, AttributeValue>
-                                    {
-                                        { "id", new AttributeValue(item) },
-                                        { "lock_owner", new AttributeValue(_nodeId) },
-                                        { "expires", new AttributeValue
-                                            {
-                                                N = Convert.ToString(new DateTimeOffset(_dateTimeProvider.UtcNow).ToUnixTimeMilliseconds() + _ttl)
-                                            }
-                                        }
-                                    },
-                                    ConditionExpression = "lock_owner = :nodeId",
-                                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-                                    {
-                                        { ":nodeId", new AttributeValue(_nodeId) }
-                                    }
-                                };
-
-                                try
-                                {
-                                    await _client.PutItemAsync(req, _cancellationTokenSource.Token);
-                                }
-                                catch (ConditionalCheckFailedException)
-                                {
-                                    _logger.LogWarning($"Lock not owned anymore when sending heartbeat for {item}");
-                                }
-                            }
+                            await _client.PutItemAsync(req, _cancellationTokenSource.Token);
                         }
-                        finally
+                        catch (ConditionalCheckFailedException)
                         {
-                            _mutex.Set();
+                            _logger.LogWarning($"Lock not owned anymore when sending heartbeat for {item}");
+                        }
+                        catch (OperationCanceledException) when (_cancellationTokenSource.IsCancellationRequested)
+                        {
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(default(EventId), ex, $"Error sending heartbeat for lock {item}");
                         }
                     }
+                }
+                catch (OperationCanceledException) when (_cancellationTokenSource.IsCancellationRequested)
+                {
+                    return;
                 }
                 catch (Exception ex)
                 {
