@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Authors>Daniel Gerlag</Authors>
+    <PackageId>TigerConnect.WorkflowCore.Providers.AWS</PackageId>
     <Description>AWS providers for Workflow Core
 
 - Provides Queueing support on Workflow Core
