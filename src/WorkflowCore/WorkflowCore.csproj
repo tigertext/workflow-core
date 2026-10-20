@@ -5,7 +5,7 @@
     <Authors>Daniel Gerlag</Authors>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>WorkflowCore</AssemblyName>
-    <PackageId>WorkflowCore</PackageId>
+    <PackageId>TigerConnect.WorkflowCore</PackageId>
     <PackageTags>workflow;.NET;Core;state machine</PackageTags>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>

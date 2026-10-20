@@ -1,0 +1,31 @@
+name: release-nuget-package
+
+on:
+  push:
+    tags:
+      - "[0-999]+.[0-999]+.[0-999]"
+      - "[0-999]+.[0-999]+.[0-999]+-*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Update NuGet package
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8'
+          source-url: https://nuget.pkg.github.com/tigertext/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set PACKAGE_VERSION to Env
+        run: echo "PACKAGE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+      - run: dotnet build src/WorkflowCore/WorkflowCore.csproj
+      - name: Create the package
+        run: dotnet pack src/WorkflowCore/WorkflowCore.csproj --configuration Release /p:Version=${PACKAGE_VERSION}
+      - name: Publish package
+        run: |
+          find src/WorkflowCore/bin/Release -name "TigerConnect.WorkflowCore.*.nupkg" -type f | while read package; do
+            echo "Publishing $package"
+            dotnet nuget push "$package"
+          done
